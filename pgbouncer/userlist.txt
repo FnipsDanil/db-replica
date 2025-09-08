@@ -1,0 +1,3 @@
+"myapp_user" ""
+"replicator" ""
+"postgres" ""

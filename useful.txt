@@ -1,0 +1,41 @@
+chmod +x /db-replica-test/start-replica.sh 
+
+chmod +x /db-replica-test/run-replica.sh && bash  /db-replica-test/run-replica.sh   
+
+  docker exec db-replica psql -U myapp_user -d myapp_db -c "SELECT 
+  pg_is_in_recovery();"
+
+
+  Что происходит при запуске контейнера:
+  1. pg_basebackup -h 31.57.107.221 - подключается к мастеру напрямую
+  2. Скачивает все данные с мастера по протоколу репликации
+  3. Создает standby.signal для режима реплики
+  4. Настраивает primary_conninfo для потоковой репликации
+
+  Проверьте, что репликация работает:
+
+  # Подождите ~30 секунд после запуска, затем:
+  docker logs db-replica --tail 20
+
+  # Проверить режим реплики
+  docker exec db-replica-new psql -U myapp_user -d myapp_db -c "SELECT 
+  pg_is_in_recovery();"
+
+  # Проверить статус подключения
+  docker exec db-replica-new psql -U myapp_user -d myapp_db -c "SELECT status
+   FROM pg_stat_wal_receiver;"
+
+  Если видите:
+  - pg_is_in_recovery = t
+  - status = streaming
+
+  То всё работает! Данные уже скопированы и синхронизируются
+  автоматически.
+
+# На мастере - проверка подключения реплики
+docker exec db-master psql -U myapp_user -d myapp_db -c "SELECT client_addr, state FROM pg_stat_replication;"
+
+
+#!/bin/bash
+docker run -d --name db-replica --shm-size=10g -e PGDATA=/var/lib/postgresql/data -v pgdata-replica:/var/lib/postgresql/data -v /db-replica-test/postgres-config/replica/postgresql.conf:/etc/postgresql/postgresql.conf -v /db-replica-test/postgres-config/replica/pg_hba.conf:/etc/postgresql/pg_hba.conf -p 5432:5432 postgres:15 bash -c "PGPASSWORD=replicator_password pg_basebackup -h 31.57.107.221 -p 5432 -U replicator -D /var/lib/postgresql/data -Fp -Xs -R -P -v && touch /var/lib/postgresql/data/standby.signal && echo \"primary_conninfo = 'host=31.57.107.221 port=5432 user=replicator password=replicator_password'\" >> /var/lib/postgresql/data/postgresql.auto.conf && echo 'hot_standby = on' >> /var/lib/postgresql/data/postgresql.auto.conf && chown -R postgres:postgres /var/lib/postgresql/data && chmod 700 /var/lib/postgresql/data && gosu postgres postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf"
+

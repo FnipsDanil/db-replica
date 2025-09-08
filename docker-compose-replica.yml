@@ -1,0 +1,59 @@
+services:
+  db-replica:
+    image: postgres:15
+    container_name: db-replica-new
+    restart: always
+    shm_size: 10g
+    environment:
+      POSTGRES_DB: myapp_db
+      POSTGRES_USER: myapp_user
+      POSTGRES_PASSWORD: Nikotin20012011@!
+      PGPASSWORD: replicator_password
+      PRIMARY_HOST: 31.57.62.46
+      PRIMARY_PORT: 5432
+      REPLICATOR_USER: replicator
+      REPLICATOR_PASSWORD: replicator_password
+    volumes:
+      - pgdata-replica-new:/var/lib/postgresql/data
+      - ./postgres-config/replica/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres-config/replica/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./replica-entrypoint.sh:/replica-entrypoint.sh:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - replica-network
+    entrypoint: ["/bin/bash", "/replica-entrypoint.sh"]
+
+# PgBouncer для чтения (replica)
+  pgbouncer-read:
+    image: edoburu/pgbouncer:latest
+    container_name: pgbouncer-read
+    restart: always
+    environment:
+      DATABASES_HOST: 94.183.191.72
+      DATABASES_PORT: 5432
+      DATABASES_DBNAME: myapp_db
+      DATABASES_USER: myapp_user
+      DATABASES_PASSWORD: Nikotin20012011@!
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 50
+      MIN_POOL_SIZE: 10
+      RESERVE_POOL_SIZE: 10
+      RESERVE_POOL_TIMEOUT: 3
+      SERVER_IDLE_TIMEOUT: 600
+      SERVER_LIFETIME: 3600
+    volumes:
+      - ./pgbouncer/pgbouncer-read.ini:/etc/pgbouncer/pgbouncer.ini
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt
+    ports:
+      - "6432:6432"  # PgBouncer для чтения
+    networks:
+      - replica-network
+
+volumes:
+  pgdata-replica-new:
+
+networks:
+  replica-network:
+    driver: bridge
