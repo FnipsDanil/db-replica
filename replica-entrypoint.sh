@@ -24,6 +24,8 @@ if [ ! -s "$PGDATA/PG_VERSION" ]; then
     echo "Репликация инициализирована успешно"
 else
     echo "База данных уже инициализирована"
+    # Удаляем стale postmaster.pid если есть (остаётся при unclean shutdown)
+    rm -f "$PGDATA/postmaster.pid"
 fi
 
 exec gosu postgres postgres \
